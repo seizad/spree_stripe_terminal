@@ -3,6 +3,8 @@ Spree::Core::Engine.add_routes do
   namespace :api do
     namespace :v1 do
       post '/terminal/connection_token' => 'stripe_terminal#connection_token'
+      get '/terminal/readers' => 'stripe_terminal#list_readers'
+      post '/terminal/process_payment' => 'stripe_terminal#process_payment'
       post '/terminal/create_payment_intent/:order_id' => 'stripe_terminal#create_payment_intent'
       post '/terminal/capture_payment_intent/:order_id/payment/:id' => 'stripe_terminal#capture_payment_intent'
     end

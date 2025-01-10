@@ -5,6 +5,29 @@ module Spree
         before_action :find_order, only: [:create_payment_intent, :capture_payment_intent]
         before_action :find_payment, only: :capture_payment_intent
 
+        def list_readers
+          begin
+            readers = Stripe::Terminal::Reader.list({
+              location: params[:location_id]
+            })
+            render status: 200, json: readers.data
+          rescue Stripe::StripeError => e
+            render status: 402, json: { error: e.message }
+          end
+        end
+
+        def process_payment
+          begin
+            reader = Stripe::Terminal::Reader.process_payment_intent(
+              params[:reader_id],
+              { payment_intent: params[:payment_intent_id] }
+            )
+            render status: 200, json: reader
+          rescue Stripe::StripeError => e
+            render status: 402, json: { error: e.message }
+          end
+        end
+
         def create_payment_intent
           validate_payments_attributes([payment_params])
           # Clear out all the pending payments
@@ -21,8 +44,11 @@ module Spree
             # This isn't saved anywhere in spree so we need to make another
             # request to stripe to get the value from the response params
             payment_intent = @payment.payment_method.show(@payment.response_code)
-            client_secret = payment_intent.params['client_secret']
-            render status: 201, json: { :payment_id => @payment.number, :secret => client_secret }
+            render status: 201, json: { 
+              payment_id: @payment.number, 
+              payment_intent_id: @payment.response_code,
+              client_secret: payment_intent.params['client_secret'] 
+            }
           else
             invalid_resource!(@payment)
           end
@@ -38,7 +64,7 @@ module Spree
             @payment.process! if @order.completed? && @payment.checkout?
             render status: 200, json: {}
           rescue Exception => e
-            render status: 402, json: {}
+            render status: 402, json: { error: e.message }
           end
         end
 
@@ -46,11 +72,11 @@ module Spree
           begin
             token = Stripe::Terminal::ConnectionToken.create
           rescue Stripe::StripeError => e
-            render status: 402, json: {}
+            render status: 402, json: { error: e.message }
             return
           end
 
-          render status: 200, json: { :secret => token.secret }.to_json
+          render status: 200, json: { secret: token.secret }
         end
 
         private
